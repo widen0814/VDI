@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8">
+    <title>My VDI GUI</title>
+</head>
+<body>
+    <iframe src="{{ gui_url }}" width="100%" height="800px" frameborder="0"></iframe>
+    <form method="post" action="/logout" style="margin-top: 16px;">
+        <input type="hidden" name="username" value="{{ username }}">
+        <button type="submit">로그아웃</button>
+    </form>
+</body>
+</html>

@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vdi-postgres
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vdi-postgres
+  template:
+    metadata:
+      labels:
+        app: vdi-postgres
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:14
+        env:
+        - name: POSTGRES_DB
+          value: vdidb
+        - name: POSTGRES_USER
+          value: user1
+        - name: POSTGRES_PASSWORD
+          value: 1234qwer
+        ports:
+        - containerPort: 5432
+        volumeMounts:
+        - name: pgdata
+          mountPath: /var/lib/postgresql/data
+      volumes:
+      - name: pgdata
+        emptyDir: {}
