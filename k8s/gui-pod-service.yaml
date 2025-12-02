@@ -6,9 +6,9 @@ metadata:
 spec:
   type: NodePort
   selector:
-    user: user1   # (유저별로 라벨 동기화!)
+    user: user1
   ports:
-    - port: 6080
-      targetPort: 6080
+    - port: 6901
+      targetPort: 6901
       protocol: TCP
       nodePort: 30680
