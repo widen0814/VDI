@@ -12,13 +12,10 @@ def ensure_gui_pod(user):
     pod_name = f"gui-{user}"
 
     v1 = client.CoreV1Api()
-    # 기존 pod 있으면 skip (동일 user 라벨)
     pods = v1.list_namespaced_pod(namespace=namespace, label_selector=f"user={user}")
     if len(pods.items) > 0:
-        # POD 정상 떠 있다고 가정: 같은 노드포트로 연결
-        return pod_name, "EXISTS", "http://192.168.2.111:30680/?resize=scale"
+        return pod_name, "EXISTS", "http://192.168.2.111:30680/"
 
-    # 새로운 pod manifest (Istio injection off, VNC auth off)
     pod_manifest = {
         "apiVersion": "v1",
         "kind": "Pod",
@@ -30,14 +27,16 @@ def ensure_gui_pod(user):
         "spec": {
             "containers": [{
                 "name": "gui",
-                "image": "accetto/ubuntu-vnc-xfce",
-                "env": [{"name": "VNC_DISABLE_AUTH", "value": "true"}],
-                "ports": [{"containerPort": 6080}, {"containerPort": 5901}]
+                "image": "dorowu/ubuntu-desktop-lxde-vnc",
+                "ports": [
+                    {"containerPort": 80},
+                    {"containerPort": 5900}
+                ]
             }]
         }
     }
     v1.create_namespaced_pod(namespace=namespace, body=pod_manifest)
-    return pod_name, "CREATED", "http://192.168.2.111:30680/?resize=scale"
+    return pod_name, "CREATED", "http://192.168.2.111:30680/"
 
 def delete_gui_pod(user):
     config.load_kube_config()
@@ -48,7 +47,7 @@ def delete_gui_pod(user):
     try:
         v1.delete_namespaced_pod(name=pod_name, namespace=namespace)
     except Exception as e:
-        pass # 이미 사라진 경우 무시
+        pass
 
 @app.route("/", methods=["GET", "POST"])
 def login():
@@ -64,8 +63,8 @@ def login():
         if user:
             session['username'] = username
             pod, status, gui_url = ensure_gui_pod(username)
-            # 로그인 성공시 바로 GUI로 리다이렉트!
-            return redirect(gui_url)
+            # 로그인 성공 시, 로딩 화면(wating.html)로 이동
+            return render_template("waiting.html", gui_url=gui_url)
         else:
             message = "로그인 실패"
             return render_template("login.html", message=message)

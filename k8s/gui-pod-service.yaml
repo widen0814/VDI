@@ -2,13 +2,12 @@ apiVersion: v1
 kind: Service
 metadata:
   name: gui-pod-service
-  namespace: default
 spec:
   type: NodePort
   selector:
     user: user1
   ports:
-    - port: 6901
-      targetPort: 6901
+    - port: 80         # 반드시 80 (컨테이너 포트)로!
+      targetPort: 80
       protocol: TCP
-      nodePort: 30680
+      nodePort: 30680  # 외부로 노출할 노드포트
