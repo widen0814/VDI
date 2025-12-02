@@ -63,12 +63,20 @@ def login():
         if user:
             session['username'] = username
             pod, status, gui_url = ensure_gui_pod(username)
-            # 로그인 성공 시, 로딩 화면(wating.html)로 이동
-            return render_template("waiting.html", gui_url=gui_url)
+            # 10초 대기(waiting.html) 후 /desktop으로 이동
+            return render_template("waiting.html", gui_url="/desktop")
         else:
             message = "로그인 실패"
             return render_template("login.html", message=message)
     return render_template("login.html")
+
+@app.route("/desktop")
+def desktop():
+    username = session.get('username')
+    if not username:
+        return redirect("/")
+    gui_url = "http://192.168.2.111:30680/"
+    return render_template("desktop.html", gui_url=gui_url, username=username)
 
 @app.route("/logout", methods=["POST"])
 def logout():
@@ -76,7 +84,8 @@ def logout():
     if username:
         delete_gui_pod(username)
         session.pop('username', None)
-    return redirect("/")
+    # 안내 화면 후 로그인으로 이동
+    return render_template("logged_out.html")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)
