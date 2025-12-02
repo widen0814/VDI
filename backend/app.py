@@ -63,7 +63,6 @@ def login():
         if user:
             session['username'] = username
             pod, status, gui_url = ensure_gui_pod(username)
-            # 10초 대기(waiting.html) 후 /desktop으로 이동
             return render_template("waiting.html", gui_url="/desktop")
         else:
             message = "로그인 실패"
@@ -84,8 +83,41 @@ def logout():
     if username:
         delete_gui_pod(username)
         session.pop('username', None)
-    # 안내 화면 후 로그인으로 이동
     return render_template("logged_out.html")
+
+# ----------- 관리자 전용 -----------
+
+@app.route("/admin_login", methods=["GET", "POST"])
+def admin_login():
+    if request.method == "POST":
+        username = request.form["username"]
+        password = request.form["password"]
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM admins WHERE username=%s AND password=%s", (username, password))
+        admin = cur.fetchone()
+        cur.close()
+        conn.close()
+        if admin:
+            session['admin_logged_in'] = True
+            session['admin_name'] = username
+            return redirect("/admin_dashboard")
+        else:
+            message = "로그인 실패"
+            return render_template("admin_login.html", message=message)
+    return render_template("admin_login.html")
+
+@app.route("/admin_dashboard")
+def admin_dashboard():
+    if not session.get("admin_logged_in"):
+        return redirect("/admin_login")
+    return render_template("admin_dashboard.html", admin_name=session.get("admin_name", "admin"))
+
+@app.route("/admin_logout", methods=["POST"])
+def admin_logout():
+    session.pop("admin_logged_in", None)
+    session.pop("admin_name", None)
+    return redirect("/admin_login")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8000)

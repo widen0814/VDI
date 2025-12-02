@@ -2,19 +2,18 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>로그인</title>
+    <title>관리자 로그인</title>
 </head>
 <body>
-    <h2>일반 사용자 로그인</h2>
+    <h2>🛡️ 관리자 로그인</h2>
     <form method="post">
         <input type="text" name="username" placeholder="ID" required/><br>
         <input type="password" name="password" placeholder="비밀번호" required/><br>
         <button type="submit">로그인</button>
     </form>
     {% if message %}<p style="color:red">{{ message }}</p>{% endif %}
-    <!-- 관리자 로그인 링크(필요하면 하단/구석에 표시) -->
     <div style="margin-top:20px;">
-        <a href="/admin_login" style="font-size:small;">관리자 로그인</a>
+        <a href="/" style="font-size:small;">일반 사용자 로그인 화면으로 이동</a>
     </div>
 </body>
 </html>
