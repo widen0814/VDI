@@ -1,15 +1,174 @@
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
     <meta charset="UTF-8">
     <title>관리자 Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <meta http-equiv="refresh" content="30">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {background:#f3f5f8;}
+        .dashboard-card {
+            max-width:1400px;
+            margin:48px auto;
+            padding:34px 28px;
+            background:#fff;
+            border-radius:26px;
+            box-shadow:0 4px 28px #0002;
+        }
+        .metric-row {
+            display:flex;
+            gap:36px;
+            justify-content:space-between;
+        }
+        .metric-box {
+            flex:1 1 0;
+            background:#fff;
+            border:1.5px solid #ddd;
+            border-radius:12px;
+            padding:26px 16px 24px 16px;
+            box-sizing:border-box;
+            display:flex;flex-direction:row;align-items:center;min-width:520px;
+        }
+        .box-left {width:41%;min-width:210px;display:flex;flex-direction:column;align-items:center;}
+        .box-right {width:59%; min-width:310px;} /* 박스 더 작게 */
+        .donut-box {width:158px;height:158px;position:relative;}
+        .donut-label {position:absolute;left:0;top:45px;width:158px;text-align:center;pointer-events:none;}
+        .donut-label .number {font-size:2.15em;font-weight:700;}
+        .donut-label .desc {font-size:1em;color:#555;line-height:1.18;}
+        .metric-title {font-size:1.08em;font-weight:530;margin-bottom:9px;}
+        .bar-label {font-size:1.02em;font-weight:650;color:#2384ed;margin-bottom:12px;}
+    </style>
 </head>
 <body>
-    <h1>관리자 Dashboard</h1>
-    <p>안녕하세요, {{ admin_name }}님!</p>
-    <form method="post" action="/admin_logout">
-        <button type="submit">로그아웃</button>
-    </form>
-    <!-- 추후 관리 기능 확장 가능 -->
+    <div class="dashboard-card">
+        <h1 style="font-size:2.12em;" class="mb-2">관리자 Dashboard</h1>
+        <div class="mb-2" style="font-size:1.07em;">안녕하세요, <b>{{ admin_name }}</b>님!</div>
+        <form method="post" action="/admin_logout" class="mb-4">
+            <button type="submit" class="btn btn-secondary" style="font-size:1.01em;">로그아웃</button>
+        </form>
+        <div class="metric-row">
+            <!-- CPU Box -->
+            <div class="metric-box">
+                <div class="box-left">
+                    <div class="metric-title">전체 CPU 사용률</div>
+                    <div class="donut-box">
+                        <canvas id="cpuDonut" width="158" height="158"></canvas>
+                        <div class="donut-label">
+                            <div class="number">{{ "%0.1f"|format(total_cpu_percent) }}%</div>
+                            <div class="desc">Used {{ "%0.1f"|format(used_cores) }} / {{ total_cores }} Core</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="box-right">
+                    <div class="bar-label">노드별 CPU 사용률 Top 5</div>
+                    <canvas id="cpuBar" width="310" height="210"></canvas>
+                </div>
+            </div>
+            <!-- MEM Box -->
+            <div class="metric-box">
+                <div class="box-left">
+                    <div class="metric-title">전체 메모리 사용률</div>
+                    <div class="donut-box">
+                        <canvas id="memDonut" width="158" height="158"></canvas>
+                        <div class="donut-label">
+                            <div class="number">{{ "%0.1f"|format(total_mem_percent) }}%</div>
+                            <div class="desc">
+                                Used {{ "%.1f"|format(mem_used_gb) }} / {{ "%.1f"|format(mem_total_gb) }} GB
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="box-right">
+                    <div class="bar-label">노드별 메모리 사용률 Top 5</div>
+                    <canvas id="memBar" width="310" height="210"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+    Chart.defaults.font.size = 15; Chart.defaults.plugins.legend.display = false;
+
+    // CPU 도넛
+    new Chart(document.getElementById('cpuDonut'), {
+      type: 'doughnut',
+      data: { labels:["Used","Unused"],datasets:[{ 
+          data:[{{ "%0.1f"|format(total_cpu_percent) }},100-{{ "%0.1f"|format(total_cpu_percent) }}], 
+          backgroundColor: ["#2366f2","#e9ecef"], borderWidth:0 }] },
+      options: { cutout:'74%' }
+    });
+
+    // CPU BAR
+    new Chart(document.getElementById('cpuBar'), {
+      type: 'bar',
+      data: {
+        labels: [{% for node, cpu in cpu_top5 %}"{{ node }}"{% if not loop.last %},{% endif %}{% endfor %}],
+        datasets: [{ data: [{% for node, cpu in cpu_top5 %}{{ "%0.1f"|format(cpu) }}{% if not loop.last %},{% endif %}{% endfor %}], backgroundColor:"#2366f2" }]
+      },
+      options: {
+        responsive: false,
+        indexAxis: 'y',
+        scales: {
+          x: {
+            min: 0, max: 100,
+            grid: {display: true},
+            ticks: {
+              stepSize:20, font:{size:14},
+              callback: function(value) { return value + '%'; } // % 표기!
+            }
+          },
+          y: {
+            title: {display: false},
+            ticks: {
+              font: {size:13},
+              padding:5,
+              autoSkip: false,
+              maxRotation:0,
+              minRotation:0
+            }
+          }
+        }
+      }
+    });
+
+    // MEM 도넛
+    new Chart(document.getElementById('memDonut'), {
+      type: 'doughnut',
+      data: { labels:["Used","Unused"],datasets:[{ 
+          data:[{{ "%0.1f"|format(total_mem_percent) }},100-{{ "%0.1f"|format(total_mem_percent) }}], 
+          backgroundColor: ["#59bf77","#e9ecef"], borderWidth:0 }] },
+      options: { cutout:'74%' }
+    });
+
+    // MEM BAR
+    new Chart(document.getElementById('memBar'), {
+      type: 'bar',
+      data: {
+        labels: [{% for node, mem in mem_top5 %}"{{ node }}"{% if not loop.last %},{% endif %}{% endfor %}],
+        datasets: [{ data: [{% for node, mem in mem_top5 %}{{ "%0.1f"|format(mem) }}{% if not loop.last %},{% endif %}{% endfor %}], backgroundColor:"#59bf77" }]
+      },
+      options: {
+        responsive: false,
+        indexAxis: 'y',
+        scales: {
+          x: {
+            min: 0, max: 100,
+            grid: {display:true},
+            ticks: {
+              stepSize:20, font:{size:14},
+              callback: function(value) { return value + '%'; }
+            }
+          },
+          y: {
+            title: {display: false},
+            ticks: {
+              font: {size:13}, padding:5, autoSkip: false,
+              maxRotation:0, minRotation:0
+            }
+          }
+        }
+      }
+    });
+    </script>
 </body>
 </html>
