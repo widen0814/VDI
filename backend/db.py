@@ -7,17 +7,37 @@ def get_db_connection():
         dbname=DB_NAME, user=DB_USER, password=DB_PASSWORD
     )
 
-def init_db():
+def get_user_by_username(username):
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        id serial PRIMARY KEY,
-        username VARCHAR(100) UNIQUE NOT NULL,
-        password VARCHAR(100) NOT NULL
-    );
-    """)
-    cur.execute("INSERT INTO users (username, password) VALUES ('user1', '1234qwer') ON CONFLICT DO NOTHING;")
+    cur.execute("SELECT * FROM users WHERE username=%s", (username,))
+    user = cur.fetchone()
+    cur.close()
+    conn.close()
+    return user
+
+def get_admin_by_username(username):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM admins WHERE username=%s", (username,))
+    admin = cur.fetchone()
+    cur.close()
+    conn.close()
+    return admin
+
+def get_all_users():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT username, last_logout_at FROM users")
+    users = cur.fetchall()
+    cur.close()
+    conn.close()
+    return users
+
+def set_last_logout(username):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET last_logout_at = NOW() WHERE username=%s", (username,))
     conn.commit()
     cur.close()
     conn.close()
