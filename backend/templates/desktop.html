@@ -4,35 +4,32 @@
     <meta charset="UTF-8">
     <title>VDI Desktop</title>
     <style>
-        #vnc-frame {
-            width: 100vw; height: 100vh;
-            border: none;
+        #vnc-frame { width: 100vw; height: 100vh; border: none; }
+        .top-btn-area {
+            position: fixed; top: 14px; right: 28px; z-index: 9999;
         }
-        #logoutBtn {
-            position: fixed;
-            top: 14px;
-            right: 28px;
+        .action-btn {
             padding: 8px 20px;
-            z-index: 9999;
             background: #1976d2; color: white; border: none; border-radius: 6px;
-            font-size: 1.1em; cursor: pointer;
-            box-shadow: 0 1px 6px #3333;
+            font-size: 1.1em; cursor: pointer; box-shadow: 0 1px 6px #3333; margin-left: 8px;
         }
-        #logoutBtn:hover {
-            background: #145a99;
-        }
+        .action-btn.logout { background:#1976d2; }
+        .action-btn.logout:hover { background: #145a99; }
+        .action-btn.terminate { background:#d32f2f; }
+        .action-btn.terminate:hover { background:#9a2330; }
     </style>
 </head>
 <body style="margin:0; overflow:hidden;">
-    <button id="logoutBtn">로그아웃</button>
+    <div class="top-btn-area">
+        <form id="logoutForm" action="/logout" method="post" style="display:inline;">
+            <input type="hidden" name="username" value="{{ username }}">
+            <button type="submit" class="action-btn logout">로그아웃</button>
+        </form>
+        <form id="terminateForm" action="/terminate" method="post" style="display:inline;">
+            <input type="hidden" name="username" value="{{ username }}">
+            <button type="submit" class="action-btn terminate">종료</button>
+        </form>
+    </div>
     <iframe id="vnc-frame" src="{{ gui_url }}"></iframe>
-    <form id="logoutForm" action="/logout" method="post" style="display:none;">
-        <input type="hidden" name="username" value="{{ username }}">
-    </form>
-    <script>
-    document.getElementById('logoutBtn').onclick = function() {
-        document.getElementById('logoutForm').submit();
-    };
-    </script>
 </body>
 </html>

@@ -90,8 +90,18 @@ def desktop():
     gui_url = "http://192.168.2.111:30680/"
     return render_template("desktop.html", gui_url=gui_url, username=username)
 
+# 로그아웃(세션만 종료, POD 유지, 상태: ONLINE)
 @app.route("/logout", methods=["POST"])
 def logout():
+    username = request.form.get("username", None) or session.get("username")
+    if username:
+        set_last_logout(username)  # 최근접속시간 기록
+        session.pop('username', None)
+    return render_template("logged_out.html")
+
+# 종료(세션종료 + POD 삭제, 상태: OFFLINE)
+@app.route("/terminate", methods=["POST"])
+def terminate():
     username = request.form.get("username", None) or session.get("username")
     if username:
         delete_gui_pod(username)
@@ -118,13 +128,10 @@ def admin_logout():
     session.pop("admin_name", None)
     return redirect(url_for('admin_login'))
 
-# ----------------### 관리자 대시보드 (모니터링 탭/유저관리 탭 전체) ###------------------------
-
 @app.route("/admin_dashboard")
 def admin_dashboard():
     if not session.get("admin_logged_in"):
         return redirect(url_for('admin_login'))
-
     # 모니터링 데이터 예시 (실제 값은 시스템에서 읽을 것)
     total_cpu_percent = 4.1
     used_cores = 1.0
@@ -140,12 +147,8 @@ def admin_dashboard():
     user_status_list = []
     for username, last_logout_at in users:
         pod_online = check_gui_pod(username)
-        if pod_online:
-            status = "ONLINE"
-            recent_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        else:
-            status = "OFFLINE"
-            recent_time = last_logout_at.strftime("%Y-%m-%d %H:%M:%S") if last_logout_at else "-"
+        status = "ONLINE" if pod_online else "OFFLINE"
+        recent_time = last_logout_at.strftime("%Y-%m-%d %H:%M:%S") if last_logout_at else "-"
         user_status_list.append({
             "username": username,
             "status": status,
