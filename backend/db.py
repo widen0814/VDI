@@ -26,18 +26,38 @@ def get_admin_by_username(username):
     return admin
 
 def get_all_users():
+    # username, last_logout_at, last_login_at, is_logged_in 모두 조회
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("SELECT username, last_logout_at FROM users")
+    cur.execute("SELECT username, last_logout_at, last_login_at, COALESCE(is_logged_in, FALSE) FROM users")
     users = cur.fetchall()
     cur.close()
     conn.close()
     return users
 
 def set_last_logout(username):
+    # 로그아웃/종료 시각 기록 + 로그인 상태 false
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("UPDATE users SET last_logout_at = NOW() WHERE username=%s", (username,))
+    cur.execute("UPDATE users SET last_logout_at = NOW(), is_logged_in = FALSE WHERE username=%s", (username,))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def set_last_login(username):
+    # 로그인 시각 기록 + 로그인 상태 true
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET last_login_at = NOW(), is_logged_in = TRUE WHERE username=%s", (username,))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def set_logged_in(username, value: bool):
+    # 로그인 상태만 토글하고 싶을 때 사용
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET is_logged_in = %s WHERE username=%s", (value, username))
     conn.commit()
     cur.close()
     conn.close()
