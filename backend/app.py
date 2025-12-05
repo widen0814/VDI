@@ -155,11 +155,11 @@ def prom_query_range(query: str, start_ts: int, end_ts: int, step: str = "30s"):
 def get_cluster_cpu_usage():
     """
     전체 CPU 사용률 및 노드별 Top5 계산.
-    CPU 사용률 계산: 5분 window로 idle 비율을 구하고 1 - idle_rate를 사용률로 가정.
+    CPU 사용률 계산: 1분 window로 idle 비율을 구하고 1 - idle_rate를 사용률로 가정.
     """
-    # 노드별 idle 비율: avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) by (instance)
+    # 노드별 idle 비율: avg(rate(node_cpu_seconds_total{mode="idle"}[1m])) by (instance)
     # 총 코어 수: count(node_cpu_seconds_total{mode="idle"}) by (instance)
-    idle_rate = prom_query('avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) by (instance)')
+    idle_rate = prom_query('avg(rate(node_cpu_seconds_total{mode="idle"}[1m])) by (instance)')
     cores_per_node = prom_query('count(node_cpu_seconds_total{mode="idle"}) by (instance)')
 
     # 매핑
@@ -340,7 +340,7 @@ def admin_dashboard():
     if not session.get("admin_logged_in"):
         return redirect(url_for('admin_login'))
 
-    # 실제 Prometheus로부터 집계
+    # Prometheus로부터 집계 (1m idle 기반)
     try:
         cpu_stats = get_cluster_cpu_usage()
         mem_stats = get_cluster_memory_usage()
