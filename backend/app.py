@@ -9,6 +9,8 @@ from db import (
 )
 from kubernetes import client, config
 from datetime import datetime
+import requests
+from config import PROMETHEUS_URL
 
 app = Flask(__name__)
 app.secret_key = "super-secret-key-1234"
@@ -123,6 +125,137 @@ def check_gui_pod(user: str) -> bool:
     except Exception:
         return False
 
+# ----------------############## Prometheus helpers #####################----------------
+
+def prom_query(query: str):
+    """Prometheus instant query"""
+    url = f"{PROMETHEUS_URL}/api/v1/query"
+    resp = requests.get(url, params={"query": query}, timeout=5)
+    resp.raise_for_status()
+    data = resp.json()
+    if data.get("status") != "success":
+        raise RuntimeError(f"Prometheus query failed: {data}")
+    return data["data"]["result"]
+
+def prom_query_range(query: str, start_ts: int, end_ts: int, step: str = "30s"):
+    """Prometheus range query"""
+    url = f"{PROMETHEUS_URL}/api/v1/query_range"
+    resp = requests.get(url, params={
+        "query": query,
+        "start": start_ts,
+        "end": end_ts,
+        "step": step
+    }, timeout=5)
+    resp.raise_for_status()
+    data = resp.json()
+    if data.get("status") != "success":
+        raise RuntimeError(f"Prometheus range query failed: {data}")
+    return data["data"]["result"]
+
+def get_cluster_cpu_usage():
+    """
+    전체 CPU 사용률 및 노드별 Top5 계산.
+    CPU 사용률 계산: 5분 window로 idle 비율을 구하고 1 - idle_rate를 사용률로 가정.
+    """
+    # 노드별 idle 비율: avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) by (instance)
+    # 총 코어 수: count(node_cpu_seconds_total{mode="idle"}) by (instance)
+    idle_rate = prom_query('avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) by (instance)')
+    cores_per_node = prom_query('count(node_cpu_seconds_total{mode="idle"}) by (instance)')
+
+    # 매핑
+    idle_map = {}
+    for item in idle_rate:
+        inst = item["metric"].get("instance", "")
+        val = float(item["value"][1])
+        idle_map[inst] = val
+
+    core_map = {}
+    for item in cores_per_node:
+        inst = item["metric"].get("instance", "")
+        cores = float(item["value"][1])
+        core_map[inst] = cores
+
+    node_usage_list = []
+    total_used_cores = 0.0
+    total_cores = 0.0
+
+    for inst, cores in core_map.items():
+        idle = idle_map.get(inst, None)
+        if idle is None:
+            continue
+        usage_ratio = max(0.0, min(1.0, 1.0 - idle))  # 0~1 clamp
+        used_cores = usage_ratio * cores
+        node_usage_list.append({
+            "node": inst,
+            "usage_percent": usage_ratio * 100.0
+        })
+        total_used_cores += used_cores
+        total_cores += cores
+
+    # 상위 5 노드
+    node_usage_list.sort(key=lambda x: x["usage_percent"], reverse=True)
+    cpu_top5 = [(n["node"], round(n["usage_percent"], 2)) for n in node_usage_list[:5]]
+
+    total_cpu_percent = round((total_used_cores / total_cores) * 100.0, 1) if total_cores > 0 else 0.0
+
+    return {
+        "total_cpu_percent": total_cpu_percent,
+        "used_cores": round(total_used_cores, 1),
+        "total_cores": int(total_cores),
+        "cpu_top5": cpu_top5
+    }
+
+def get_cluster_memory_usage():
+    """
+    전체 메모리 사용률 및 노드별 Top5 계산.
+    사용률 = 1 - (MemAvailable / MemTotal)
+    """
+    mem_total = prom_query('node_memory_MemTotal_bytes')
+    mem_avail = prom_query('node_memory_MemAvailable_bytes')
+
+    total_bytes_map = {}
+    for item in mem_total:
+        inst = item["metric"].get("instance", "")
+        val = float(item["value"][1])
+        total_bytes_map[inst] = val
+
+    avail_bytes_map = {}
+    for item in mem_avail:
+        inst = item["metric"].get("instance", "")
+        val = float(item["value"][1])
+        avail_bytes_map[inst] = val
+
+    node_mem_list = []
+    total_used_bytes = 0.0
+    total_bytes_sum = 0.0
+
+    for inst, total_b in total_bytes_map.items():
+        avail_b = avail_bytes_map.get(inst, None)
+        if avail_b is None:
+            continue
+        used_b = max(0.0, total_b - avail_b)
+        usage_ratio = used_b / total_b if total_b > 0 else 0.0
+        node_mem_list.append({
+            "node": inst,
+            "usage_percent": usage_ratio * 100.0
+        })
+        total_used_bytes += used_b
+        total_bytes_sum += total_b
+
+    node_mem_list.sort(key=lambda x: x["usage_percent"], reverse=True)
+    mem_top5 = [(n["node"], round(n["usage_percent"], 1)) for n in node_mem_list[:5]]
+
+    total_mem_percent = round((total_used_bytes / total_bytes_sum) * 100.0, 1) if total_bytes_sum > 0 else 0.0
+    mem_used_gb = round(total_used_bytes / (1024**3), 1)
+    mem_total_gb = round(total_bytes_sum / (1024**3), 1)
+
+    return {
+        "total_mem_percent": total_mem_percent,
+        "mem_used_gb": mem_used_gb,
+        "mem_total_gb": mem_total_gb,
+        "mem_top5": mem_top5
+    }
+
 # ----------------############## 유저/관리자 로그인/로그아웃 #####################----------------
 
 @app.route("/", methods=["GET", "POST"])
@@ -207,21 +340,36 @@ def admin_dashboard():
     if not session.get("admin_logged_in"):
         return redirect(url_for('admin_login'))
 
-    # 모니터링 데이터 예시 (실 운영에서는 실제 값으로 교체)
-    total_cpu_percent = 4.1
-    used_cores = 1.0
-    total_cores = 24
-    total_mem_percent = 25.9
-    mem_used_gb = 11.9
-    mem_total_gb = 46.1
-    cpu_top5 = [("k8s-worker02", 1.2), ("k8s-worker01", 1.1), ("k8s-master01", 0.9)]
-    mem_top5 = [("k8s-worker01", 25.1), ("k8s-worker02", 22.9), ("k8s-master01", 19.6)]
+    # 실제 Prometheus로부터 집계
+    try:
+        cpu_stats = get_cluster_cpu_usage()
+        mem_stats = get_cluster_memory_usage()
+        total_cpu_percent = cpu_stats["total_cpu_percent"]
+        used_cores = cpu_stats["used_cores"]
+        total_cores = cpu_stats["total_cores"]
+        cpu_top5 = cpu_stats["cpu_top5"]
 
-    # 유저 관리: username, last_logout_at, last_login_at, is_logged_in 조회
-    raw_users = get_all_users()
-    users_sorted = sorted(raw_users, key=lambda row: _username_sort_key(row[0]))
+        total_mem_percent = mem_stats["total_mem_percent"]
+        mem_used_gb = mem_stats["mem_used_gb"]
+        mem_total_gb = mem_stats["mem_total_gb"]
+        mem_top5 = mem_stats["mem_top5"]
+    except Exception as e:
+        # Prometheus 접근 오류 시 안전한 기본값 표시
+        total_cpu_percent = 0.0
+        used_cores = 0.0
+        total_cores = 0
+        total_mem_percent = 0.0
+        mem_used_gb = 0.0
+        mem_total_gb = 0.0
+        cpu_top5 = []
+        mem_top5 = []
+
+    # 유저 관리: users + pod 상태 조합
+    users = get_all_users()
+    users_sorted = sorted(users, key=lambda row: _username_sort_key(row[0]))
 
     user_status_list = []
+    # users: (username, last_logout_at, last_login_at, is_logged_in)
     for username, last_logout_at, last_login_at, is_logged_in in users_sorted:
         pod_online = check_gui_pod(username)
         status = "ONLINE" if pod_online else "OFFLINE"
