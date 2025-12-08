@@ -9,13 +9,13 @@
       .select-container { max-width:640px; margin:70px auto; padding:28px; background:#fff; border-radius:12px; box-shadow:0 6px 30px #0002; }
       .img-row { display:flex; gap:12px; align-items:center; margin-bottom:12px; }
       .img-desc { font-size:.95em; color:#444; }
+      .port-desc { font-size:.85em; color:#666; margin-left:6px; }
     </style>
 </head>
 <body>
   <div class="select-container">
     <h4>데스크톱 이미지 선택</h4>
     <p class="text-muted">사용할 데스크톱 이미지를 선택하세요. (선택하지 않으면 기본 이미지로 생성됩니다)</p>
-
     <form method="post" action="/start_desktop">
       <div class="mb-3">
         <div class="form-check">
@@ -23,14 +23,15 @@
           <label class="form-check-label" for="img_default">기본 이미지 사용</label>
         </div>
       </div>
-
       {% if images %}
         <div class="mb-3">
-          {% for name, ref in images %}
+          {% for name, ref, web_port, vnc_port in images %}
             <div class="form-check img-row">
               <input class="form-check-input" type="radio" name="selected_image" id="img_{{ loop.index }}" value="{{ ref }}">
               <label class="form-check-label" for="img_{{ loop.index }}">
-                <strong>{{ name }}</strong> <span class="img-desc"> — {{ ref }}</span>
+                <strong>{{ name }}</strong>
+                <span class="img-desc"> — {{ ref }}</span>
+                <span class="port-desc"> (web: {{ web_port }}, vnc: {{ vnc_port }})</span>
               </label>
             </div>
           {% endfor %}
@@ -38,13 +39,11 @@
       {% else %}
         <div class="alert alert-secondary">등록된 추가 이미지가 없습니다. 관리자가 이미지를 추가하면 목록에 표시됩니다.</div>
       {% endif %}
-
       <div class="d-flex justify-content-end gap-2">
         <a href="/logout" class="btn btn-secondary" onclick="event.preventDefault(); document.getElementById('cancelForm').submit();">취소</a>
         <button type="submit" class="btn btn-primary">선택 및 데스크톱 생성</button>
       </div>
     </form>
-
     <form id="cancelForm" action="/logout" method="post" style="display:none;">
       <input type="hidden" name="username" value="{{ username }}">
     </form>

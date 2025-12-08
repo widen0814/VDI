@@ -12,6 +12,7 @@ from db import (
     create_image,
     delete_image,
     image_exists,
+    get_image_by_ref,
 )
 from kubernetes import client, config
 from datetime import datetime, timezone, timedelta
@@ -36,16 +37,22 @@ def to_kst(dt: datetime) -> str:
         return dt.strftime("%Y-%m-%d %H:%M:%S")
 
 def ensure_gui_pod(user: str, image_ref: str = None):
-    """
-    Create Pod and Service for user if they don't already exist.
-    If image_ref is provided, use that image; otherwise default image.
-    Returns (pod_name, status_str, gui_url)
-    """
     config.load_kube_config()
     namespace = "default"
     pod_name = f"gui-{user}"
     svc_name = f"gui-svc-{user}"
     node_ip = "192.168.2.111"
+
+    web_port = 80
+    vnc_port = 5900
+    if image_ref:
+        img = get_image_by_ref(image_ref)
+        if img:
+            _, _, web_p, vnc_p = img
+            try: web_port = int(web_p)
+            except: web_port = 80
+            try: vnc_port = int(vnc_p)
+            except: vnc_port = 5900
 
     container_image = image_ref if image_ref else "dorowu/ubuntu-desktop-lxde-vnc"
 
@@ -55,7 +62,7 @@ def ensure_gui_pod(user: str, image_ref: str = None):
         pod_manifest = {
             "apiVersion":"v1","kind":"Pod",
             "metadata":{"name":pod_name,"labels":{"user":user},"annotations":{"sidecar.istio.io/inject":"false"}},
-            "spec":{"containers":[{"name":"gui","image":container_image,"ports":[{"containerPort":80},{"containerPort":5900}]}]}
+            "spec":{"containers":[{"name":"gui","image":container_image,"ports":[{"containerPort":web_port},{"containerPort":vnc_port}]}]}
         }
         v1.create_namespaced_pod(namespace=namespace, body=pod_manifest)
 
@@ -76,7 +83,10 @@ def ensure_gui_pod(user: str, image_ref: str = None):
         service_manifest = {
             "apiVersion":"v1","kind":"Service","metadata":{"name":svc_name},
             "spec":{"type":"NodePort","selector":{"user":user},
-                    "ports":[{"port":80,"targetPort":80,"protocol":"TCP",**({"nodePort":node_port_value} if node_port_value else {})}]}
+                    "ports":[
+                        {"port":80,"targetPort":web_port,"protocol":"TCP", **({"nodePort":node_port_value} if node_port_value else {})},
+                        {"port":vnc_port,"targetPort":vnc_port,"protocol":"TCP"}
+                    ]}
         }
         v1.create_namespaced_service(namespace=namespace, body=service_manifest)
         svc = v1.read_namespaced_service(name=svc_name, namespace=namespace)
@@ -168,36 +178,26 @@ def get_cluster_memory_usage():
     mem_total_gb = round(total_bytes_sum / (1024**3), 1)
     return {"total_mem_percent": total_mem_percent, "mem_used_gb": mem_used_gb, "mem_total_gb": mem_total_gb, "mem_top5": mem_top5}
 
-# ---------- 사용자 로그인 / 이미지 선택 플로우 ----------
 @app.route("/", methods=["GET", "POST"])
 def login():
-    # 로그인 화면은 이미지 선택을 포함하지 않습니다.
-    # 이미지 선택은 인증 후 'Pod이 없을 때' 별도 페이지로 이동시켜 처리합니다.
     if request.method == "POST":
         username = request.form["username"]
         password = request.form["password"]
         user = get_user_by_username(username)
         if user and user[2] == password:
-            # 인증 성공
             session['username'] = username
-            # Pod가 이미 존재하면 기존 동작: 바로 대기 화면(또는 데스크탑)으로 진행
             try:
                 pod_running = check_gui_pod(username)
             except Exception:
                 pod_running = False
-
             if pod_running:
-                # 로그인 시각 기록 및 이동
                 set_last_login(username)
-                # 선택된 이미지이던 아니던 이미 Pod가 존재하므로 desktop에서 URL을 계산합니다
                 return render_template("waiting.html", gui_url=url_for('desktop'))
             else:
-                # Pod이 없으면 이미지 선택 페이지로 이동 (이미지 목록 제공)
                 try:
                     images = get_all_images()
                 except Exception:
                     images = []
-                # note: 이미지 선택 페이지에서 POST로 /start_desktop 로 보냅니다.
                 return render_template("select_image.html", images=images, username=username)
         else:
             return render_template("login.html", message="로그인 실패")
@@ -205,11 +205,9 @@ def login():
 
 @app.route("/select_image", methods=["GET"])
 def select_image_page():
-    # 사용자가 직접 접근했을 때 이미지 선택 페이지
     username = session.get('username')
     if not username:
         return redirect(url_for('login'))
-    # 만약 이미 Pod가 있으면 바로 데스크탑으로 redirect
     try:
         if check_gui_pod(username):
             return redirect(url_for('desktop'))
@@ -223,23 +221,18 @@ def select_image_page():
 
 @app.route("/start_desktop", methods=["POST"])
 def start_desktop():
-    # 이미지 선택 폼에서 호출하여 선택한 이미지로 Pod 생성
     username = session.get('username')
     if not username:
         return redirect(url_for('login'))
     selected_image = request.form.get("selected_image", "").strip() or None
-    # 저장은 선택한 이미지 레퍼런스로 함 (None이면 기본 이미지)
     if selected_image:
         session['selected_image'] = selected_image
     else:
         session.pop('selected_image', None)
-    # 로그인 시간 기록
     set_last_login(username)
-    # Pod 생성(또는 존재하면 쓰지 않음)
     try:
         ensure_gui_pod(username, session.get('selected_image'))
     except Exception:
-        # 생성 실패 시 에러 처리(관리자에게 보여주기 위해 flash)
         flash("데스크탑 생성 중 오류가 발생했습니다.", "danger")
         return redirect(url_for('login'))
     return render_template("waiting.html", gui_url=url_for('desktop'))
@@ -249,14 +242,12 @@ def desktop():
     username = session.get('username')
     if not username:
         return redirect(url_for('login'))
-    # 보호: 세션에 selected_image가 없고 Pod도 없으면 이미지 선택 페이지로 유도
     try:
         pod_exists = check_gui_pod(username)
     except Exception:
         pod_exists = False
     if not pod_exists and not session.get('selected_image'):
         return redirect(url_for('select_image_page'))
-    # Pod이 있거나(또는 selected_image가 있는 경우) Pod 생성/확인
     pod, status, gui_url = ensure_gui_pod(username, session.get('selected_image'))
     return render_template("desktop.html", gui_url=gui_url, username=username)
 
@@ -278,7 +269,6 @@ def terminate():
         session.pop('selected_image', None)
     return render_template("logged_out.html")
 
-# ---------- 관리자 로그인/대시보드 (기존 기능 유지) ----------
 @app.route("/admin_login", methods=["GET", "POST"])
 def admin_login():
     if request.method == "POST":
@@ -341,7 +331,6 @@ def admin_dashboard():
     for username, last_logout_at, last_login_at, is_logged_in in users_sorted:
         pod_online = check_gui_pod(username)
         status = "ONLINE" if pod_online else "OFFLINE"
-
         if pod_online and is_logged_in:
             recent_time = "로그인중"
         else:
@@ -351,17 +340,13 @@ def admin_dashboard():
                 recent_time = to_kst(last_login_at)
             else:
                 recent_time = "신규 아이디입니다"
-
         row = {"username": username, "status": status, "recent_time": recent_time}
         user_status_list.append(row)
         all_accounts_list.append(row)
-
-    # images for admin tab
     try:
         images = get_all_images()
     except Exception:
         images = []
-
     return render_template(
         "admin_dashboard.html",
         admin_name=session.get("admin_name"),
@@ -378,7 +363,6 @@ def admin_dashboard():
         images=images
     )
 
-# ---------- 계정/이미지 관리 라우트 (관리자) ----------
 @app.route("/admin_account_change_password", methods=["POST"])
 def admin_account_change_password():
     if not session.get("admin_logged_in"):
@@ -392,7 +376,6 @@ def admin_account_change_password():
     if new_password != new_password_confirm:
         flash("비밀번호가 일치하지 않습니다.", "danger")
         return redirect(url_for('admin_dashboard') + "#account")
-
     conn = get_db_connection()
     cur = conn.cursor()
     try:
@@ -405,7 +388,6 @@ def admin_account_change_password():
     finally:
         cur.close()
         conn.close()
-
     return redirect(url_for('admin_dashboard') + "#account")
 
 @app.route("/admin_account_delete", methods=["POST"])
@@ -416,12 +398,10 @@ def admin_account_delete():
     if not username:
         flash("필수 값이 없습니다.", "danger")
         return redirect(url_for('admin_dashboard') + "#account")
-
     try:
         delete_gui_pod(username)
     except Exception:
         pass
-
     conn = get_db_connection()
     cur = conn.cursor()
     try:
@@ -434,7 +414,6 @@ def admin_account_delete():
     finally:
         cur.close()
         conn.close()
-
     return redirect(url_for('admin_dashboard') + "#account")
 
 @app.route("/admin_images_create", methods=["POST"])
@@ -443,6 +422,12 @@ def admin_images_create():
         return redirect(url_for('admin_login'))
     name = request.form.get("name", "").strip()
     image_ref = request.form.get("image_ref", "").strip()
+    try:
+        web_port = int(request.form.get("web_port", "").strip() or 80)
+    except: web_port = 80
+    try:
+        vnc_port = int(request.form.get("vnc_port", "").strip() or 5900)
+    except: vnc_port = 5900
     if not name or not image_ref:
         flash("이미지 이름과 이미지 레퍼런스를 입력하세요.", "danger")
         return redirect(url_for('admin_dashboard') + "#images")
@@ -450,7 +435,7 @@ def admin_images_create():
         if image_exists(name):
             flash("이미지 이름이 이미 존재합니다.", "danger")
             return redirect(url_for('admin_dashboard') + "#images")
-        create_image(name, image_ref)
+        create_image(name, image_ref, web_port, vnc_port)
         flash(f"이미지 '{name}'이(가) 추가되었습니다.", "success")
     except Exception:
         flash("이미지 추가 중 오류가 발생했습니다.", "danger")
