@@ -83,3 +83,39 @@ def create_user(username: str, password: str):
     conn.commit()
     cur.close()
     conn.close()
+
+# ---------- 이미지 관리 (관리자) ----------
+def get_all_images():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT name, image_ref FROM images ORDER BY name")
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+    # return list of tuples (name, image_ref)
+    return rows
+
+def image_exists(name: str) -> bool:
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT 1 FROM images WHERE name=%s LIMIT 1", (name,))
+    exists = cur.fetchone() is not None
+    cur.close()
+    conn.close()
+    return exists
+
+def create_image(name: str, image_ref: str):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("INSERT INTO images (name, image_ref) VALUES (%s, %s)", (name, image_ref))
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def delete_image(name: str):
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM images WHERE name=%s", (name,))
+    conn.commit()
+    cur.close()
+    conn.close()
