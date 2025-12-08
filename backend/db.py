@@ -61,3 +61,25 @@ def set_logged_in(username, value: bool):
     conn.commit()
     cur.close()
     conn.close()
+
+# ---------- 신규 계정 생성/중복 확인 ----------
+def username_exists(username: str) -> bool:
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT 1 FROM users WHERE username=%s LIMIT 1", (username,))
+    exists = cur.fetchone() is not None
+    cur.close()
+    conn.close()
+    return exists
+
+def create_user(username: str, password: str):
+    # 간단 구현: 비밀번호 평문 저장 (추후 bcrypt로 변경 권장)
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO users (username, password, is_logged_in) VALUES (%s, %s, FALSE)",
+        (username, password)
+    )
+    conn.commit()
+    cur.close()
+    conn.close()

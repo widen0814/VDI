@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, session, url_for, flash
+from flask import Flask, render_template, request, redirect, session, url_for, flash, jsonify
 from db import (
     get_db_connection,
     get_user_by_username,
@@ -6,6 +6,8 @@ from db import (
     get_all_users,
     set_last_logout,
     set_last_login,
+    username_exists,
+    create_user,
 )
 from kubernetes import client, config
 from datetime import datetime, timezone, timedelta
@@ -265,7 +267,8 @@ def admin_dashboard():
             elif last_login_at:
                 recent_time = to_kst(last_login_at)
             else:
-                recent_time = "-"
+                # 최근 접속 이력이 전혀 없는 사용자
+                recent_time = "신규 아이디입니다"
 
         row = {"username": username, "status": status, "recent_time": recent_time}
         user_status_list.append(row)
@@ -286,7 +289,7 @@ def admin_dashboard():
         all_accounts_list=all_accounts_list
     )
 
-# ---------- 계정관리 액션: 비밀번호 변경 / 계정 삭제 ----------
+# ---------- 계정관리 액션: 비밀번호 변경 / 계정 삭제 / 신규 생성 / 아이디 중복 확인 ----------
 
 @app.route("/admin_account_change_password", methods=["POST"])
 def admin_account_change_password():
@@ -297,13 +300,11 @@ def admin_account_change_password():
     new_password_confirm = request.form.get("new_password_confirm")
     if not username or not new_password or not new_password_confirm:
         flash("필수 값이 없습니다.", "danger")
-        # 계정관리 탭으로 복귀
         return redirect(url_for('admin_dashboard') + "#account")
     if new_password != new_password_confirm:
         flash("비밀번호가 일치하지 않습니다.", "danger")
         return redirect(url_for('admin_dashboard') + "#account")
 
-    # 비밀번호 변경
     conn = get_db_connection()
     cur = conn.cursor()
     try:
@@ -317,7 +318,6 @@ def admin_account_change_password():
         cur.close()
         conn.close()
 
-    # 계정관리 탭으로 복귀
     return redirect(url_for('admin_dashboard') + "#account")
 
 @app.route("/admin_account_delete", methods=["POST"])
@@ -329,7 +329,6 @@ def admin_account_delete():
         flash("필수 값이 없습니다.", "danger")
         return redirect(url_for('admin_dashboard') + "#account")
 
-    # 계정 삭제 전 리소스 정리(선택)
     try:
         delete_gui_pod(username)
     except Exception:
@@ -348,7 +347,42 @@ def admin_account_delete():
         cur.close()
         conn.close()
 
-    # 계정관리 탭으로 복귀
+    return redirect(url_for('admin_dashboard') + "#account")
+
+@app.route("/admin_account_check_username", methods=["GET"])
+def admin_account_check_username():
+    if not session.get("admin_logged_in"):
+        return jsonify({"error": "unauthorized"}), 401
+    username = request.args.get("username", "").strip()
+    if not username:
+        return jsonify({"exists": False, "error": "empty username"}), 400
+    try:
+        exists = username_exists(username)
+        return jsonify({"exists": exists})
+    except Exception:
+        return jsonify({"error": "check failed"}), 500
+
+@app.route("/admin_account_create", methods=["POST"])
+def admin_account_create():
+    if not session.get("admin_logged_in"):
+        return redirect(url_for('admin_login'))
+    username = request.form.get("username", "").strip()
+    password = request.form.get("password", "")
+    password_confirm = request.form.get("password_confirm", "")
+    if not username or not password or not password_confirm:
+        flash("필수 값이 없습니다.", "danger")
+        return redirect(url_for('admin_dashboard') + "#account")
+    if password != password_confirm:
+        flash("비밀번호가 일치하지 않습니다.", "danger")
+        return redirect(url_for('admin_dashboard') + "#account")
+    try:
+        if username_exists(username):
+            flash("이미 존재하는 아이디입니다.", "danger")
+            return redirect(url_for('admin_dashboard') + "#account")
+        create_user(username, password)
+        flash(f"{username} 계정이 생성되었습니다.", "success")
+    except Exception:
+        flash("계정 생성 중 오류가 발생했습니다.", "danger")
     return redirect(url_for('admin_dashboard') + "#account")
 
 if __name__ == "__main__":
