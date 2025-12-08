@@ -16,7 +16,7 @@
         .tab-btn.active { color:#195cff; border-bottom:3px solid #195cff; background:none; }
         .tab-content { margin-top:18px; }
         .metric-row { display:flex; gap:36px; justify-content:space-between; }
-        .metric-box { flex:1 1 0; background:#fff; border:1.5px solid #ddd; border-radius:12px; padding:26px 16px 24px 16px; box-sizing:border-box; display:flex; flex-direction:row; align-items:center; }
+        .metric-box { flex:1 1 0; background:#fff; border:1.5px solid #ddd; border-radius:12px; padding:26px 16px 24px 16px; box-sizing:border-box; display:flex; flex-direction:row; align-items:center; gap:18px;}
         .box-left { width:41%; min-width:210px; display:flex; flex-direction:column; align-items:center; }
         .box-right { width:59%; min-width:310px; }
         .donut-box { width:158px; height:158px; position:relative; }
@@ -25,11 +25,15 @@
         .donut-label .desc { font-size:1em; color:#555; line-height:1.18; }
         .metric-title { font-size:1.08em; font-weight:530; margin-bottom:9px; }
         .bar-label { font-size:1.02em; font-weight:650; color:#2384ed; margin-bottom:12px; }
+
         .account-actions { display:flex; gap:10px; align-items:center; }
         .btn-change { background:#0d6efd; color:#fff; }
         .btn-delete { background:#dc3545; color:#fff; }
+
+        /* 계정관리 헤더 영역 */
         .account-header { display:flex; justify-content:flex-end; align-items:center; margin-bottom:10px; }
         .btn-create { background:#198754; color:#fff; }
+
         .modal-dialog { max-width: 520px; }
     </style>
 </head>
@@ -48,10 +52,8 @@
             <button class="tab-btn" id="tab_monitoring_btn" onclick="showTab('monitoring');return false;">모니터링</button>
             <button class="tab-btn" id="tab_user_btn" onclick="showTab('user');return false;">사용자 세션</button>
             <button class="tab-btn" id="tab_account_btn" onclick="showTab('account');return false;">계정관리</button>
-            <button class="tab-btn" id="tab_images_btn" onclick="showTab('images');return false;">데스크톱 관리</button>
         </div>
 
-        <!-- 모니터링 -->
         <div class="tab-content" id="tab_monitoring">
             <div class="metric-row">
                 <div class="metric-box">
@@ -89,14 +91,13 @@
             </div>
         </div>
 
-        <!-- 사용자 세션 -->
         <div class="tab-content" id="tab_user" style="display:none;">
             <table class="table table-bordered" style="width:100%;margin-top:28px;">
                 <thead>
                     <tr>
                         <th>아이디</th>
                         <th>상태</th>
-                        <th>최근 접속시간(KST)</th>
+                        <th>최근 접속시간</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -117,8 +118,8 @@
             </table>
         </div>
 
-        <!-- 계정관리 -->
         <div class="tab-content" id="tab_account" style="display:none;">
+            <!-- 계정관리 상단 우측에 신규 계정 생성 버튼 -->
             <div class="account-header">
                 <button type="button" class="btn btn-sm btn-create" onclick="openCreateAccountModal()">신규 계정 생성</button>
             </div>
@@ -152,46 +153,9 @@
                 </tbody>
             </table>
         </div>
-
-        <!-- 데스크톱 관리 -->
-        <div class="tab-content" id="tab_images" style="display:none;">
-            <div class="account-header">
-                <button type="button" class="btn btn-sm btn-create" onclick="openCreateImageModal()">이미지 추가</button>
-            </div>
-            <table class="table table-bordered" style="width:100%;margin-top:10px;">
-                <thead>
-                    <tr>
-                        <th>이름</th>
-                        <th>이미지 레퍼런스 (repo:tag)</th>
-                        <th>web_port/vnc_port</th>
-                        <th style="width:20%;">관리</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for name, ref, web_port, vnc_port in images %}
-                    <tr>
-                        <td>{{ name }}</td>
-                        <td>{{ ref }}</td>
-                        <td>{{ web_port }}/{{ vnc_port }}</td>
-                        <td>
-                            <form method="post" action="/admin_images_delete" onsubmit="return confirm('이미지를 삭제하시겠습니까?');">
-                                <input type="hidden" name="name" value="{{ name }}">
-                                <button type="submit" class="btn btn-sm btn-delete">삭제</button>
-                            </form>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                    {% if images|length == 0 %}
-                    <tr>
-                        <td colspan="4" class="text-center" style="color:#777;">등록된 이미지가 없습니다</td>
-                    </tr>
-                    {% endif %}
-                </tbody>
-            </table>
-        </div>
     </div>
 
-    <!-- 비밀번호 변경 모달 -->
+    <!-- 비밀번호 변경 모달: 바깥 클릭/ESC로 닫히지 않도록 설정 -->
     <div class="modal fade" id="passwordModal" tabindex="-1" aria-labelledby="passwordModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -221,7 +185,7 @@
       </div>
     </div>
 
-    <!-- 신규 계정 생성 모달 -->
+    <!-- 신규 계정 생성 모달: 바깥 클릭/ESC로 닫히지 않음 -->
     <div class="modal fade" id="createAccountModal" tabindex="-1" aria-labelledby="createAccountModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -260,60 +224,17 @@
       </div>
     </div>
 
-    <!-- 이미지 추가 모달 -->
-    <div class="modal fade" id="createImageModal" tabindex="-1" aria-labelledby="createImageModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
-      <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-          <form method="post" action="/admin_images_create" onsubmit="return validateCreateImage()">
-            <div class="modal-header">
-              <h5 class="modal-title" id="createImageModalLabel">이미지 추가</h5>
-              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
-            </div>
-            <div class="modal-body">
-              <div class="mb-3">
-                <label class="form-label">이미지 이름</label>
-                <input type="text" class="form-control" id="imageName" name="name" placeholder="예: Ubuntu-LXDE" required>
-              </div>
-              <div class="mb-3">
-                <label class="form-label">이미지 레퍼런스</label>
-                <input type="text" class="form-control" id="imageRef" name="image_ref" placeholder="예: repo/image:tag" required>
-                <div class="form-text">사용자가 로그인할 때 선택 가능한 이미지 목록에 추가됩니다.</div>
-              </div>
-              <div class="mb-3 row">
-                <div class="col">
-                  <label class="form-label">웹 포트(컨테이너)</label>
-                  <input type="number" class="form-control" id="imageWebPort" name="web_port" value="80" min="1" max="65535">
-                  <div class="form-text">noVNC/웹 접속용 포트(예 80, 6080)</div>
-                </div>
-                <div class="col">
-                  <label class="form-label">VNC 포트(컨테이너)</label>
-                  <input type="number" class="form-control" id="imageVncPort" name="vnc_port" value="5900" min="1" max="65535">
-                  <div class="form-text">VNC 서버 포트(일반적으로 5900)</div>
-                </div>
-              </div>
-              <div id="createImageError" class="text-danger" style="display:none;"></div>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
-              <button type="submit" class="btn btn-success">추가</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+    // ========== 기존 스크립트 ======
     function showTab(name) {
         document.getElementById('tab_monitoring').style.display = (name=='monitoring') ? 'block' : 'none';
         document.getElementById('tab_user').style.display = (name=='user') ? 'block' : 'none';
         document.getElementById('tab_account').style.display = (name=='account') ? 'block' : 'none';
-        document.getElementById('tab_images').style.display = (name=='images') ? 'block' : 'none';
 
         document.getElementById('tab_monitoring_btn').classList.toggle('active', name=='monitoring');
         document.getElementById('tab_user_btn').classList.toggle('active', name=='user');
         document.getElementById('tab_account_btn').classList.toggle('active', name=='account');
-        document.getElementById('tab_images_btn').classList.toggle('active', name=='images');
 
         location.hash = '#' + name;
     }
@@ -324,19 +245,45 @@
             showTab('user');
         } else if (hash === 'account') {
             showTab('account');
-        } else if (hash === 'images') {
-            showTab('images');
         } else {
             showTab('monitoring');
         }
     };
 
-    let passwordModal, createAccountModal, createImageModal;
+    let passwordModal, createAccountModal;
+
+    // 아이디 중복확인 상태 관리
+    const UsernameCheckState = {
+      Unchecked: 'unchecked',   // 확인 안함
+      Available: 'available',   // 사용 가능
+      Duplicate: 'duplicate',   // 중복
+      Error: 'error'            // 확인 중 오류
+    };
+    let createUsernameState = UsernameCheckState.Unchecked;
+    let lastCheckedUsername = '';
+
     document.addEventListener('DOMContentLoaded', function() {
-        passwordModal = new bootstrap.Modal(document.getElementById('passwordModal'));
-        createAccountModal = new bootstrap.Modal(document.getElementById('createAccountModal'));
-        createImageModal = new bootstrap.Modal(document.getElementById('createImageModal'));
+        const pwdModalEl = document.getElementById('passwordModal');
+        passwordModal = new bootstrap.Modal(pwdModalEl);
+        const createModalEl = document.getElementById('createAccountModal');
+        createAccountModal = new bootstrap.Modal(createModalEl);
+
+        // 아이디 입력이 바뀌면 상태를 초기화
+        const usernameInput = document.getElementById('createUsername');
+        usernameInput.addEventListener('input', () => {
+            if (usernameInput.value.trim() !== lastCheckedUsername) {
+                resetUsernameCheckUI();
+                createUsernameState = UsernameCheckState.Unchecked;
+            }
+        });
     });
+
+    function resetUsernameCheckUI() {
+        document.getElementById('createUsernameError').style.display = 'none';
+        document.getElementById('createUsernameOk').style.display = 'none';
+        document.getElementById('createUsernameError').innerText = '';
+        document.getElementById('createUsernameOk').innerText = '';
+    }
 
     function openPasswordModal(username) {
         document.getElementById('pwdChangeUsername').value = username;
@@ -360,60 +307,151 @@
         return confirm(username + " 계정을 정말 삭제하시겠습니까?");
     }
 
+    // 신규 계정 생성
     function openCreateAccountModal() {
         document.getElementById('createUsername').value = '';
         document.getElementById('createPassword').value = '';
         document.getElementById('createPasswordConfirm').value = '';
         resetUsernameCheckUI();
-        const pwdErr = document.getElementById('createPwdError');
-        if (pwdErr) pwdErr.style.display = 'none';
+        document.getElementById('createPwdError').style.display = 'none';
         createUsernameState = UsernameCheckState.Unchecked;
         lastCheckedUsername = '';
         createAccountModal.show();
     }
 
-    function openCreateImageModal() {
-        document.getElementById('imageName').value = '';
-        document.getElementById('imageRef').value = '';
-        document.getElementById('imageWebPort').value = '80';
-        document.getElementById('imageVncPort').value = '5900';
-        document.getElementById('createImageError').style.display = 'none';
-        createImageModal.show();
+    // 핵심! 아이디 & 비밀번호 동시 병렬 검사(둘 다 오류 나오면 둘 다 보여줌)
+    function validateCreateAccount() {
+        const pwd = document.getElementById('createPassword').value;
+        const confirmPwd = document.getElementById('createPasswordConfirm').value;
+        const errEl = document.getElementById('createUsernameError');
+        const pwdErrEl = document.getElementById('createPwdError');
+        let valid = true;
+
+        // 아이디 메시지: 미확인/중복/에러 다 처리
+        if (createUsernameState === UsernameCheckState.Unchecked) {
+            errEl.innerText = '아이디 확인을 하십시오';
+            errEl.style.display = 'block';
+            valid = false;
+        } else if (createUsernameState === UsernameCheckState.Duplicate) {
+            errEl.innerText = '중복된 아이디입니다';
+            errEl.style.display = 'block';
+            valid = false;
+        } else if (createUsernameState === UsernameCheckState.Error) {
+            errEl.innerText = '아이디 확인 중 오류가 있습니다. 다시 확인하세요.';
+            errEl.style.display = 'block';
+            valid = false;
+        } else {
+            errEl.style.display = 'none';
+        }
+
+        // 비밀번호 메시지: 미입력/불일치
+        if (!pwd) {
+            pwdErrEl.innerText = '비밀번호를 입력하세요';
+            pwdErrEl.style.display = 'block';
+            valid = false;
+        } else if (pwd !== confirmPwd) {
+            pwdErrEl.innerText = '비밀번호가 일치하지 않습니다.';
+            pwdErrEl.style.display = 'block';
+            valid = false;
+        } else {
+            pwdErrEl.style.display = 'none';
+        }
+
+        return valid;
     }
 
-    function validateCreateImage() {
-        const name = document.getElementById('imageName').value.trim();
-        const ref = document.getElementById('imageRef').value.trim();
-        const webPort = document.getElementById('imageWebPort').value.trim();
-        const vncPort = document.getElementById('imageVncPort').value.trim();
-        const errEl = document.getElementById('createImageError');
-        if (!name || !ref) {
-            errEl.innerText = '이름과 이미지 레퍼런스를 입력하세요.';
+    async function checkUsernameDup() {
+        const username = document.getElementById('createUsername').value.trim();
+        const errEl = document.getElementById('createUsernameError');
+        const okEl = document.getElementById('createUsernameOk');
+        errEl.style.display = 'none';
+        okEl.style.display = 'none';
+
+        if (!username) {
+            createUsernameState = UsernameCheckState.Unchecked;
+            errEl.innerText = '아이디를 입력하세요.';
             errEl.style.display = 'block';
-            return false;
+            return;
         }
-        if (webPort && (isNaN(webPort) || webPort < 1 || webPort > 65535)) {
-            errEl.innerText = '웹 포트가 유효하지 않습니다.';
+
+        try {
+            const resp = await fetch('/admin_account_check_username?username=' + encodeURIComponent(username), { method: 'GET' });
+            if (!resp.ok) throw new Error('network error');
+            const data = await resp.json();
+            lastCheckedUsername = username;
+
+            if (data.exists) {
+                createUsernameState = UsernameCheckState.Duplicate;
+                errEl.innerText = '중복된 아이디입니다';
+                errEl.style.display = 'block';
+            } else {
+                createUsernameState = UsernameCheckState.Available;
+                okEl.innerText = '사용 가능한 아이디입니다.';
+                okEl.style.display = 'block';
+                errEl.style.display = 'none';
+            }
+        } catch (e) {
+            createUsernameState = UsernameCheckState.Error;
+            errEl.innerText = '확인 중 오류가 발생했습니다.';
             errEl.style.display = 'block';
-            return false;
         }
-        if (vncPort && (isNaN(vncPort) || vncPort < 1 || vncPort > 65535)) {
-            errEl.innerText = 'VNC 포트가 유효하지 않습니다.';
-            errEl.style.display = 'block';
-            return false;
-        }
-        return true;
     }
 
-    function resetUsernameCheckUI() {
-        const err = document.getElementById('createUsernameError');
-        const ok = document.getElementById('createUsernameOk');
-        if (err) { err.style.display = 'none'; err.innerText = ''; }
-        if (ok) { ok.style.display = 'none'; ok.innerText = ''; }
-    }
+    // Charts
+    Chart.defaults.font.size = 15; Chart.defaults.plugins.legend.display = false;
 
-    // 아래는 아이디 중복확인, 계정 생성 등 기존 함수 그대로 입니다.
-    /* ... 이하 기존 스크립트 ... */
+    new Chart(document.getElementById('cpuDonut'), {
+      type: 'doughnut',
+      data: { labels:["Used","Unused"],datasets:[{ 
+          data:[{{ "%0.1f"|format(total_cpu_percent) }},100-{{ "%0.1f"|format(total_cpu_percent) }}],
+          backgroundColor: ["#2366f2","#e9ecef"], borderWidth:0 }] },
+      options: { cutout:'74%' }
+    });
+
+    new Chart(document.getElementById('cpuBar'), {
+      type: 'bar',
+      data: {
+        labels: [{% for node, cpu in cpu_top5 %}"{{ node }}"{% if not loop.last %},{% endif %}{% endfor %}],
+        datasets: [{ data: [{% for node, cpu in cpu_top5 %}{{ "%0.1f"|format(cpu) }}{% if not loop.last %},{% endif %}{% endfor %}], backgroundColor:"#2366f2" }]
+      },
+      options: {
+        responsive: false,
+        indexAxis: 'y',
+        scales: {
+          x: { min: 0, max: 100, grid: {display: true},
+            ticks: { stepSize:20, font:{size:14}, callback: function(value) { return value + '%'; } } },
+          y: { title: {display: false},
+            ticks: { font: {size:13}, padding:5, autoSkip: false, maxRotation:0, minRotation:0 } }
+        }
+      }
+    });
+
+    new Chart(document.getElementById('memDonut'), {
+      type: 'doughnut',
+      data: { labels:["Used","Unused"],datasets:[{ 
+          data:[{{ "%0.1f"|format(total_mem_percent) }},100-{{ "%0.1f"|format(total_mem_percent) }}],
+          backgroundColor: ["#59bf77","#e9ecef"], borderWidth:0 }] },
+      options: { cutout:'74%' }
+    });
+
+    new Chart(document.getElementById('memBar'), {
+      type: 'bar',
+      data: {
+        labels: [{% for node, mem in mem_top5 %}"{{ node }}"{% if not loop.last %},{% endif %}{% endfor %}],
+        datasets: [{ data: [{% for node, mem in mem_top5 %}{{ "%0.1f"|format(mem) }}{% if not loop.last %},{% endif %}{% endfor %}], backgroundColor:"#59bf77" }]
+      },
+      options: {
+        responsive: false,
+        indexAxis: 'y',
+        scales: {
+          x: { min: 0, max: 100, grid: {display:true},
+            ticks: { stepSize:20, font:{size:14}, callback: function(value) { return value + '%'; } } },
+          y: { title: {display: false},
+            ticks: { font: {size:13}, padding:5, autoSkip: false, maxRotation:0, minRotation:0 } }
+        }
+      }
+    });
     </script>
 </body>
 </html>
+
